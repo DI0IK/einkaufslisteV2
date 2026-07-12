@@ -32,6 +32,7 @@ COPY --from=builder --chown=app:app /app/server .
 
 # Default configuration environment variables
 ENV PORT=8080
+ENV GIN_MODE=release
 EXPOSE 8080
 
 CMD ["./server"]
