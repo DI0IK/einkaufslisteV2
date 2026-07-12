@@ -46,7 +46,7 @@ object NetworkModule {
     fun provideRetrofit(okHttpClient: OkHttpClient, json: Json): Retrofit {
         val contentType = "application/json".toMediaType()
         return Retrofit.Builder()
-            .baseUrl("http://localhost:8080/api/") // Using localhost to support adb reverse
+            .baseUrl("https://einkaufslistev2.samdj.de/api/")
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory(contentType))
             .build()
