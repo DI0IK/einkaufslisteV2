@@ -1,0 +1,537 @@
+openapi: "3.1.0"
+info:
+  title: Shopping List API
+  version: "1.0.0"
+  description: Offline-first REST API for the Einkaufsliste application. Uses Last-Write-Wins (LWW) with tombstones for conflict resolution.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ShoppingList:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        icon:
+          type: ["string", "null"]
+          description: Material icon name or emoji
+        color:
+          type: ["string", "null"]
+          description: Hex color code
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    AvailableItem:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        category:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    ShoppingListItem:
+      type: object
+      required: [id, item, quantity, checked, sortOrder, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        item:
+          $ref: "#/components/schemas/AvailableItem"
+        quantity:
+          type: number
+          minimum: 0
+          description: Supports decimals (e.g., 1.5)
+        unit:
+          type: ["string", "null"]
+          description: The unit selected for this specific shopping trip (e.g., "kg", "pcs")
+        checked:
+          type: boolean
+          default: false
+        sortOrder:
+          type: integer
+          description: Used for custom dragging/sorting
+        note:
+          type: ["string", "null"]
+          description: Replaces itemPrefix (e.g., "organic" or "large")
+        addedBy:
+          type: ["string", "null"]
+          description: Username or ID of the person who added it
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    # Request Bodies
+    CreateShoppingListRequest:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Client-generated UUID for offline support
+        name:
+          type: string
+          minLength: 1
+        icon:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+
+    UpdateShoppingListRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        icon:
+          type: ["string", "null"]
+        color:
+          type: ["string", "null"]
+
+    CreateAvailableItemRequest:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Client-generated UUID for offline support
+        name:
+          type: string
+          minLength: 1
+        category:
+          type: ["string", "null"]
+
+    UpdateAvailableItemRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        category:
+          type: ["string", "null"]
+
+    CreateShoppingListItemRequest:
+      type: object
+      required: [itemId, quantity]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Client-generated UUID for offline support
+        itemId:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          minimum: 0
+        unit:
+          type: ["string", "null"]
+        checked:
+          type: boolean
+          default: false
+        sortOrder:
+          type: integer
+          default: 0
+        note:
+          type: ["string", "null"]
+
+    UpdateShoppingListItemRequest:
+      type: object
+      properties:
+        checked:
+          type: boolean
+        quantity:
+          type: number
+          minimum: 0
+        unit:
+          type: ["string", "null"]
+        sortOrder:
+          type: integer
+        note:
+          type: ["string", "null"]
+
+    Error:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        message:
+          type: string
+
+  parameters:
+    listId:
+      name: listId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    itemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    listItemId:
+      name: listItemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    updatedSince:
+      name: updatedSince
+      in: query
+      description: ISO-8601 timestamp. Return only records created, updated, or soft-deleted after this time.
+      schema:
+        type: string
+        format: date-time
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ValidationError:
+      description: Invalid request data
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+paths:
+  /api/shopping-lists:
+    get:
+      operationId: listShoppingLists
+      summary: Get all shopping lists
+      tags: [Shopping Lists]
+      parameters:
+        - $ref: "#/components/parameters/updatedSince"
+      responses:
+        "200":
+          description: Returns lists (including tombstones if updatedSince is provided)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ShoppingList" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createShoppingList
+      summary: Create a new shopping list
+      tags: [Shopping Lists]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateShoppingListRequest" }
+      responses:
+        "201":
+          description: Shopping list created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data: { $ref: "#/components/schemas/ShoppingList" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/shopping-lists/{listId}:
+    parameters:
+      - $ref: "#/components/parameters/listId"
+    get:
+      operationId: getShoppingList
+      summary: Get a single shopping list (metadata only)
+      tags: [Shopping Lists]
+      responses:
+        "200":
+          description: Shopping list retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data: { $ref: "#/components/schemas/ShoppingList" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateShoppingList
+      summary: Update list properties
+      tags: [Shopping Lists]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateShoppingListRequest" }
+      responses:
+        "200":
+          description: Shopping list updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data: { $ref: "#/components/schemas/ShoppingList" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteShoppingList
+      summary: Soft-delete a shopping list
+      tags: [Shopping Lists]
+      responses:
+        "204":
+          description: List tombstoned
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/shopping-lists/{listId}/catalog:
+    parameters:
+      - $ref: "#/components/parameters/listId"
+    get:
+      operationId: listAvailableItems
+      summary: Get list-scoped master catalog of items
+      tags: [Catalog]
+      parameters:
+        - $ref: "#/components/parameters/updatedSince"
+      responses:
+        "200":
+          description: Available items retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AvailableItem" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createAvailableItem
+      summary: Create a catalog item for this list
+      tags: [Catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAvailableItemRequest" }
+      responses:
+        "201":
+          description: Available item created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data: { $ref: "#/components/schemas/AvailableItem" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/shopping-lists/{listId}/catalog/{itemId}:
+    parameters:
+      - $ref: "#/components/parameters/listId"
+      - $ref: "#/components/parameters/itemId"
+    patch:
+      operationId: updateAvailableItem
+      summary: Update a catalog item
+      tags: [Catalog]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateAvailableItemRequest" }
+      responses:
+        "200":
+          description: Available item updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data: { $ref: "#/components/schemas/AvailableItem" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteAvailableItem
+      summary: Soft-delete a catalog item
+      tags: [Catalog]
+      responses:
+        "204":
+          description: Item tombstoned
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/shopping-lists/{listId}/items:
+    parameters:
+      - $ref: "#/components/parameters/listId"
+    get:
+      operationId: listShoppingListItems
+      summary: Get active and checked items on the list
+      tags: [List Items]
+      parameters:
+        - $ref: "#/components/parameters/updatedSince"
+      responses:
+        "200":
+          description: Shopping list items retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/ShoppingListItem" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: addShoppingListItem
+      summary: Add an item to the shopping list
+      tags: [List Items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateShoppingListItemRequest" }
+      responses:
+        "201":
+          description: Item added
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data: { $ref: "#/components/schemas/ShoppingListItem" }
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/shopping-lists/{listId}/items/{listItemId}:
+    parameters:
+      - $ref: "#/components/parameters/listId"
+      - $ref: "#/components/parameters/listItemId"
+    patch:
+      operationId: updateShoppingListItem
+      summary: Update a list item (e.g., check/uncheck)
+      tags: [List Items]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateShoppingListItemRequest" }
+      responses:
+        "200":
+          description: List item updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, enum: [true] }
+                  data: { $ref: "#/components/schemas/ShoppingListItem" }
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteShoppingListItem
+      summary: Soft-delete an item from the list
+      tags: [List Items]
+      responses:
+        "204":
+          description: List item tombstoned
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"

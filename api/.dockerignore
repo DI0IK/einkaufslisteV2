@@ -1,0 +1,16 @@
+# Ignore local SQLite database files
+*.db
+*.db-shm
+*.db-wal
+
+# Ignore local builds or binary files
+server
+bin/
+
+# Ignore Git files and local IDE configs
+.git
+.idea
+.vscode
+.devenv
+.direnv
+.envrc
