@@ -30,17 +30,6 @@
     pkgs.antigravity-fhs
   ];
 
-  processes = {
-    server.exec = "go run ./backend/cmd/server";
-    buf-watch = {
-      exec = "buf generate --template buf.gen.yaml proto";
-      watch = {
-        paths = [ ./proto ];
-        extensions = [ "proto" ];
-      };
-    };
-  };
-
   enterShell = ''
     echo "☕ Einkaufsliste Development Environment Ready"
     echo "Java Version:   $(java -version 2>&1 | head -n 1)"
