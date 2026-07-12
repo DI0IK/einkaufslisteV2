@@ -182,22 +182,70 @@ fun ListDetailsScreen(
 
             if (selectedTabIndex == 0) {
                 // --- Tab 1: Items List ---
+                var collapsedListCategories by remember { mutableStateOf(emptySet<String>()) }
+
+                val groupedListItems = remember(listItems) {
+                    listItems
+                        .groupBy { it.catalogItem?.category ?: "Sonstiges" }
+                        .mapValues { (_, items) ->
+                            items.sortedBy { it.catalogItem?.name ?: "Unbekanntes Produkt" }
+                        }
+                        .toSortedMap()
+                }
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(listItems, key = { it.listItem.id }) { item ->
-                        SwipeableListItem(
-                            item = item,
-                            onCheckedToggle = { viewModel.toggleItemChecked(item.listItem) },
-                            onDelete = { viewModel.deleteItem(item.listItem) },
-                            onLongClick = {
-                                selectedListItemForEdit = item
-                                showEditItemDialog = true
+                    groupedListItems.forEach { (category, items) ->
+                        val isCollapsed = collapsedListCategories.contains(category)
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        collapsedListCategories = if (isCollapsed) {
+                                            collapsedListCategories - category
+                                        } else {
+                                            collapsedListCategories + category
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = category.uppercase(),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    letterSpacing = 1.sp
+                                )
+                                Icon(
+                                    imageVector = if (isCollapsed) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                    contentDescription = if (isCollapsed) "Kategorie ausklappen" else "Kategorie einklappen",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
-                        )
+                        }
+
+                        if (!isCollapsed) {
+                            items(items, key = { it.listItem.id }) { item ->
+                                SwipeableListItem(
+                                    item = item,
+                                    onCheckedToggle = { viewModel.toggleItemChecked(item.listItem) },
+                                    onDelete = { viewModel.deleteItem(item.listItem) },
+                                    onLongClick = {
+                                        selectedListItemForEdit = item
+                                        showEditItemDialog = true
+                                    }
+                                )
+                            }
+                        }
                     }
 
                     if (listItems.isEmpty()) {
@@ -239,10 +287,11 @@ fun ListDetailsScreen(
                 var collapsedCategories by remember { mutableStateOf(emptySet<String>()) }
 
                 val filteredCatalog = remember(catalogSearchQuery, catalogItems) {
-                    if (catalogSearchQuery.isBlank()) {
+                    val query = catalogSearchQuery.trim()
+                    if (query.isBlank()) {
                         catalogItems
                     } else {
-                        catalogItems.filter { it.name.contains(catalogSearchQuery, ignoreCase = true) }
+                        catalogItems.filter { it.name.contains(query, ignoreCase = true) }
                     }
                 }
 
@@ -432,10 +481,11 @@ fun ListDetailsScreen(
             var note by remember { mutableStateOf("") }
 
             val filteredCatalog = remember(searchQuery, catalogItems) {
-                if (searchQuery.isBlank()) {
+                val query = searchQuery.trim()
+                if (query.isBlank()) {
                     catalogItems
                 } else {
-                    catalogItems.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                    catalogItems.filter { it.name.contains(query, ignoreCase = true) }
                 }
             }
 
@@ -443,14 +493,18 @@ fun ListDetailsScreen(
                 filteredCatalog.groupBy { it.category ?: "Sonstiges" }
             }
 
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
             ModalBottomSheet(
                 onDismissRequest = { showAddItemSheet = false },
+                sheetState = sheetState,
                 containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .fillMaxHeight(0.8f)
                         .padding(horizontal = 24.dp)
                         .padding(bottom = 40.dp)
                 ) {
@@ -481,8 +535,13 @@ fun ListDetailsScreen(
                         Spacer(modifier = Modifier.height(12.dp))
 
                         // Match Catalog list
-                        Box(modifier = Modifier.heightIn(max = 250.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        ) {
                             LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 groupedFilteredCatalog.forEach { (category, items) ->
