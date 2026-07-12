@@ -52,7 +52,7 @@ class SyncRepository @Inject constructor(
                 listsResponse.body()?.data?.forEach { netList ->
                     val local = dao.getListById(netList.id)
                     // Apply LWW conflict resolution
-                    if (local == null || Instant.parse(netList.updatedAt) >= Instant.parse(local.updatedAt)) {
+                    if (local == null || parseInstant(netList.updatedAt) >= parseInstant(local.updatedAt)) {
                         dao.upsertLists(listOf(
                             ShoppingListEntity(
                                 id = netList.id,
@@ -79,7 +79,7 @@ class SyncRepository @Inject constructor(
                 if (catalogResponse.isSuccessful) {
                     catalogResponse.body()?.data?.forEach { netItem ->
                         val local = dao.getAvailableItemById(netItem.id)
-                        if (local == null || Instant.parse(netItem.updatedAt) >= Instant.parse(local.updatedAt)) {
+                        if (local == null || parseInstant(netItem.updatedAt) >= parseInstant(local.updatedAt)) {
                             dao.upsertAvailableItems(listOf(
                                 AvailableItemEntity(
                                     id = netItem.id,
@@ -101,7 +101,7 @@ class SyncRepository @Inject constructor(
                 if (itemsResponse.isSuccessful) {
                     itemsResponse.body()?.data?.forEach { netItem ->
                         val local = dao.getItemById(netItem.id)
-                        if (local == null || Instant.parse(netItem.updatedAt) >= Instant.parse(local.updatedAt)) {
+                        if (local == null || parseInstant(netItem.updatedAt) >= parseInstant(local.updatedAt)) {
                             // If GORM loaded the catalog item nested inside, make sure it is upserted locally too
                             netItem.item?.let { netCatalogItem ->
                                 dao.upsertAvailableItems(listOf(
@@ -252,4 +252,9 @@ class SyncRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    private fun parseInstant(timeStr: String): Instant {
+        return java.time.OffsetDateTime.parse(timeStr).toInstant()
+    }
 }
+
