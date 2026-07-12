@@ -71,7 +71,11 @@ func UpdateAvailableItem(db *gorm.DB) gin.HandlerFunc {
 			Where("id = ? AND list_id = ?", itemID, listID).
 			Updates(updateData)
 
-		if result.Error != nil || result.RowsAffected == 0 {
+		if result.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Update failed: " + result.Error.Error()})
+			return
+		}
+		if result.RowsAffected == 0 {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Item not found"})
 			return
 		}

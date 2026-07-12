@@ -61,7 +61,7 @@ func UpdateShoppingList(db *gorm.DB) gin.HandlerFunc {
 
 		result := db.Model(&model.ShoppingList{}).Where("id = ?", listID).Updates(updateData)
 		if result.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Update failed"})
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Update failed: " + result.Error.Error()})
 			return
 		}
 		if result.RowsAffected == 0 {
