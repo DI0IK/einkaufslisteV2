@@ -19,6 +19,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -232,90 +235,186 @@ fun ListDetailsScreen(
                 }
             } else {
                 // --- Tab 2: Catalog Tab ---
-                val groupedCatalog = remember(catalogItems) {
-                    catalogItems.groupBy { it.category ?: "Sonstiges" }
+                var catalogSearchQuery by remember { mutableStateOf("") }
+                var collapsedCategories by remember { mutableStateOf(emptySet<String>()) }
+
+                val filteredCatalog = remember(catalogSearchQuery, catalogItems) {
+                    if (catalogSearchQuery.isBlank()) {
+                        catalogItems
+                    } else {
+                        catalogItems.filter { it.name.contains(catalogSearchQuery, ignoreCase = true) }
+                    }
                 }
 
-                LazyColumn(
+                val groupedCatalog = remember(filteredCatalog) {
+                    filteredCatalog.groupBy { it.category ?: "Sonstiges" }
+                }
+
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 24.dp)
                 ) {
-                    groupedCatalog.forEach { (category, items) ->
-                        item {
-                            Text(
-                                text = category.uppercase(),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                letterSpacing = 1.sp,
-                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                    OutlinedTextField(
+                        value = catalogSearchQuery,
+                        onValueChange = { catalogSearchQuery = it },
+                        placeholder = { Text("Vorlagen durchsuchen...") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Suchen",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
-
-                        items(items, key = { it.id }) { item ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .border(
-                                        BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                        RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable {
-                                        selectedCatalogItemForEdit = item
-                                        showEditCatalogSheet = true
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = item.name,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Bearbeiten",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    if (catalogItems.isEmpty()) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 80.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        },
+                        trailingIcon = {
+                            if (catalogSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { catalogSearchQuery = "" }) {
                                     Icon(
-                                        imageVector = Icons.Default.List,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(36.dp),
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Suche löschen",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        groupedCatalog.forEach { (category, items) ->
+                            val isCollapsed = collapsedCategories.contains(category)
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            collapsedCategories = if (isCollapsed) {
+                                                collapsedCategories - category
+                                            } else {
+                                                collapsedCategories + category
+                                            }
+                                        }
+                                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        text = "Keine Vorlagen im Katalog",
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.SemiBold
+                                        text = category.uppercase(),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        letterSpacing = 1.sp
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Erstelle eine neue Vorlage mit dem FAB (+)",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    Icon(
+                                        imageVector = if (isCollapsed) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                        contentDescription = if (isCollapsed) "Kategorie ausklappen" else "Kategorie einklappen",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(18.dp)
                                     )
+                                }
+                            }
+
+                            if (!isCollapsed || catalogSearchQuery.isNotBlank()) {
+                                items(items, key = { it.id }) { item ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(
+                                                BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable {
+                                                selectedCatalogItemForEdit = item
+                                                showEditCatalogSheet = true
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = item.name,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (catalogItems.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 80.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = Icons.Default.List,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(36.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "Keine Vorlagen im Katalog",
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Erstelle eine neue Vorlage mit dem FAB (+)",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (filteredCatalog.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 80.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(36.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "Keine passenden Vorlagen gefunden",
+                                            fontSize = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Passe deine Suche an oder erstelle eine neue Vorlage",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
                                 }
                             }
                         }
