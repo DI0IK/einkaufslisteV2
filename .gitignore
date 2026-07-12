@@ -2,3 +2,6 @@
 .devenv
 .direnv
 *.db*
+*.keystore
+*.jks
+base64_keystore.txt
